@@ -1,6 +1,6 @@
 import os
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from aiogram import Dispatcher, types, Bot
 from aiogram.filters import Command
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 from dotenv import load_dotenv
 load_dotenv()
 
-PRODUCTS_PER_PAGE = 3
+PRODUCTS_PER_PAGE = 5
 
 class PaginationManager:
     def __init__(self):
@@ -134,8 +134,17 @@ paginator = PaginationManager()
 
 async def products_command(message: types.Message, bot: Bot):
     logger.info(f"/products от {message.from_user.id}")
-    start_date = "2025-09-04"
-    end_date = "2025-10-03"
+    
+    # Вычисляем динамические даты за последние 30 дней
+    today = datetime.today()
+    start_date = (today - timedelta(days=30)).strftime("%Y-%m-%d")
+    end_date = today.strftime("%Y-%m-%d")  # .replace(hour=0, minute=0, second=0, microsecond=0)
+    
+    # Обновляем сессию с новыми датами
+    paginator.user_sessions[message.from_user.id].update({
+        'start_date': start_date,
+        'end_date': end_date
+    })
     
     await paginator.send_page(
         chat_id=message.chat.id,
@@ -148,19 +157,26 @@ async def products_command(message: types.Message, bot: Bot):
 
 async def handle_callback(callback: types.CallbackQuery, bot: Bot):
     logger.info(f"Callback от {callback.from_user.id}")
+    user_id = callback.from_user.id
+    
+    # Получаем даты из сессии пользователя
+    session_data = paginator.user_sessions.get(user_id, {})
+    start_date = session_data.get('start_date')
+    end_date = session_data.get('end_date')
+    
     action, page_str = callback.data.split('_', 1)
     current_page = int(page_str)
     new_page = current_page - 1 if action == "prev" else current_page + 1
     
     await paginator.send_page(
         chat_id=callback.message.chat.id,
-        user_id=callback.from_user.id,
+        user_id=user_id,
         page=new_page,
         bot=bot,
-        start_date="2025-09-01",
-        end_date="2025-09-30"
+        start_date=start_date,
+        end_date=end_date
     )
-    await callback.answer()
+    await callback
 
 def setup(dp: Dispatcher):
     dp.message.register(products_command, Command("products"))
