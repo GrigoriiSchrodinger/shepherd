@@ -1,5 +1,4 @@
 import os
-import logging
 import json
 from datetime import datetime, timedelta
 from io import BytesIO
@@ -11,16 +10,7 @@ from aiogram.filters import Command
 
 from api.mpstats_api import MpstatsAPI
 from api.mpstats_module import MpstatsData, Product
-
-logger = logging.getLogger(__name__)
-logging.basicConfig(
-    level=logging.DEBUG,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[
-        logging.FileHandler("full_debug.log"),
-        logging.StreamHandler()
-    ]
-)
+from config import logger
 
 DATE_FORMAT = "%Y-%m-%d"
 DEFAULT_CATEGORY = "Женщинам/Толстовки, свитшоты и худи"

@@ -1,3 +1,4 @@
+colorlog
 pandas
 python-dotenv
 aiofiles==24.1.0

@@ -1,11 +1,6 @@
-import json
-import logging
-from typing import List, Dict
+from typing import List
 
-# Включаем логирование
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
+from config import logger
 
 class Product:
     def __init__(self, data: dict):

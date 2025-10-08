@@ -1,14 +1,10 @@
 import aiohttp
-import logging
 from dotenv import load_dotenv
+from config import logger
 import os
 
 # Загрузка переменных окружения из файла .env
 load_dotenv()
-
-# Включаем логирование
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 # Получаем токен из переменных окружения
 MPSTATS_API_TOKEN = os.getenv('MPSTATS_API_TOKEN')
