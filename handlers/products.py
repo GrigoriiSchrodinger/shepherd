@@ -1,192 +1,197 @@
 import os
-from collections import defaultdict
+import logging
+import json
 from datetime import datetime, timedelta
-from typing import Dict, Any, Optional
+from io import BytesIO
+from typing import List, Dict
 
+import pandas as pd
 from aiogram import Dispatcher, types, Bot
 from aiogram.filters import Command
-from aiogram.utils.keyboard import InlineKeyboardBuilder
-import logging
 
 from api.mpstats_api import MpstatsAPI
-from api.mpstats_module import MpstatsData
+from api.mpstats_module import MpstatsData, Product
 
-# Настройка логирования
 logger = logging.getLogger(__name__)
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.DEBUG,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[
+        logging.FileHandler("full_debug.log"),
+        logging.StreamHandler()
+    ]
 )
 
-# Конфигурация
-PRODUCTS_PER_PAGE = 5
 DATE_FORMAT = "%Y-%m-%d"
-DEFAULT_CATEGORY = "Женщинам/Толстовки, свитшоты и худи/Свитшот"
+DEFAULT_CATEGORY = "Женщинам/Толстовки, свитшоты и худи"
 
-
-class PaginationManager:
-    """Управление пагинацией и пользовательскими сессиями"""
-    
+class ExcelReportGenerator:
     def __init__(self):
         self.api = MpstatsAPI(os.getenv('MPSTATS_API_TOKEN'))
-        self.user_sessions: Dict[int, Dict[str, Any]] = defaultdict(dict)
-        logger.info("Инициализирован PaginationManager")
+        logger.info("Генератор отчетов инициализирован")
 
-    async def fetch_products(self, start_date: str, end_date: str, category: str = DEFAULT_CATEGORY) -> MpstatsData:
-        """Загрузка данных из MPStats""" 
-        try:
-            data = await self.api.get_category_data(start_date, end_date, category)
-            products = MpstatsData(data.get("data", []))
-            filtered = products.filter_products(30, 200_000)
-            return products.sort_products_by_revenue(
-                products.filter_products_with_drop(filtered, 20)
-            )
-        except Exception as e:
-            logger.error(f"Ошибка получения данных: {str(e)}")
-            return MpstatsData([])
-
-    async def send_page(
+    async def generate_excel_report(
         self,
-        chat_id: int,
-        user_id: int,
-        page: int,
-        bot: Bot,
+        start_date: str,
+        end_date: str,
+        category: str = DEFAULT_CATEGORY
+    ) -> BytesIO:
+        try:
+            self._validate_dates(start_date, end_date)
+            products, raw_response = await self._fetch_api_data(start_date, end_date, category)
+            df = self._prepare_report_data(products, start_date, end_date)
+            return self._create_excel(df)
+
+        except Exception as e:
+            logger.error(f"Ошибка при создании отчета: {str(e)}", exc_info=True)
+            raise
+
+    def _validate_dates(self, start_date: str, end_date: str) -> None:
+        now = datetime.now().date()
+        
+        try:
+            start_dt = datetime.strptime(start_date, DATE_FORMAT).date()
+            end_dt = datetime.strptime(end_date, DATE_FORMAT).date()
+        except ValueError as e:
+            raise ValueError("Неверный формат даты. Используйте YYYY-MM-DD") from e
+
+        if start_dt > end_dt:
+            raise ValueError("Дата начала не может быть позже даты окончания")
+            
+        if start_dt > now or end_dt > now:
+            logger.warning("⚠️ Используются даты из будущего")
+
+    async def _fetch_api_data(
+        self,
+        start_date: str,
+        end_date: str,
+        category: str
+    ) -> tuple[List[Product], dict]:
+        logger.info(f"Запрос данных для {category} с {start_date} по {end_date}")
+        raw_data = await self.api.get_category_data(start_date, end_date, category)
+        logger.debug("Полный ответ API:\n%s", json.dumps(raw_data, indent=2, ensure_ascii=False))
+        items = raw_data.get("data", []) if isinstance(raw_data, dict) else raw_data
+        return MpstatsData(items).products, raw_data
+
+    def _prepare_report_data(
+        self,
+        products: List[Product],
         start_date: str,
         end_date: str
-    ) -> None:
-        """Отправка страницы с товарами и пагинацией"""
-        # Обновление данных сессии
-        self.user_sessions[user_id].update({
-            'chat_id': chat_id,
-            'bot': bot,
-            'start_date': start_date,
-            'end_date': end_date
-        })
+    ) -> pd.DataFrame:
+        report = []
+        logger.info(f"Обработка {len(products)} продуктов")
         
-        await self._cleanup_previous_messages(user_id)
-        products = await self.fetch_products(start_date, end_date)
-        total_pages = (len(products) + PRODUCTS_PER_PAGE - 1) // PRODUCTS_PER_PAGE
-        
-        # Отправка товаров текущей страницы
-        messages = [
-            await self._send_product_message(bot, chat_id, product, page, i, user_id)
-            for i, product in enumerate(products[page*PRODUCTS_PER_PAGE:(page+1)*PRODUCTS_PER_PAGE])
-        ]
-        
-        # Отправка пагинации
-        pagination_msg = await self._send_pagination_controls(bot, chat_id, page, total_pages, products)
-        self.user_sessions[user_id]['message_ids'] = [msg.message_id for msg in messages] + [pagination_msg.message_id]
-
-    async def _cleanup_previous_messages(self, user_id: int) -> None:
-        """Удаление предыдущих сообщений"""
-        if not (session := self.user_sessions.get(user_id)):
-            return
-            
-        bot, chat_id = session.get('bot'), session.get('chat_id')
-        message_ids = session.get('message_ids', [])
-        
-        if not bot or not chat_id:
-            return
-
-        for msg_id in message_ids:
+        for idx, product in enumerate(products, 1):
             try:
-                await bot.delete_message(chat_id, msg_id)
+                report.append({
+                    '№': idx,
+                    'Название': product.name,
+                    'Выручка': self._format_currency(getattr(product, 'revenue', 0)),
+                    'Оборачиваемость': self._get_turnover_value(product.raw_data),
+                    'Ссылка WB': self._get_wb_link(product.id),
+                    'MPStats': self._build_mpstats_link(product.id, start_date, end_date)
+                })
             except Exception as e:
-                logger.error(f"Ошибка удаления сообщения: {str(e)}")
+                logger.error(f"Ошибка обработки продукта #{idx}: {str(e)}")
+        return pd.DataFrame(report)
 
-    async def _send_product_message(
+    def _get_turnover_value(self, raw_data: Dict) -> str:
+        """Получение значения оборачиваемости из turnover_days"""
+        try:
+            # Получаем значение дней оборачиваемости
+            turnover_days = raw_data.get('turnover_days')
+            
+            # Если параметр отсутствует в данных
+            if turnover_days is None:
+                logger.warning("Параметр turnover_days отсутствует в данных")
+                return "Н/Д"
+            
+            # Форматируем целое число дней
+            return f"{int(turnover_days)} дн."
+
+        except Exception as e:
+            logger.error(f"Ошибка обработки оборачиваемости: {str(e)}")
+            return "Ошибка"
+
+    def _get_wb_link(self, product_id: int) -> str:
+        return f"https://www.wb.ru/catalog/{product_id}/detail.aspx"
+
+    def _build_mpstats_link(
         self,
-        bot: Bot,
-        chat_id: int,
-        product: Any,
-        page: int,
-        index: int,
-        user_id: int  # Добавлен обязательный user_id
-    ) -> types.Message:
-        """Отправка сообщения с товаром"""
-        position = page * PRODUCTS_PER_PAGE + index + 1
-        
-        # Получение дат из сессии пользователя
-        start_date_str = self.user_sessions[user_id]['start_date']
-        end_date_str = self.user_sessions[user_id]['end_date']
-        
-        # Форматирование дат для URL
-        start_date = datetime.strptime(start_date_str, DATE_FORMAT).strftime("%d.%m.%Y")
-        end_date = datetime.strptime(end_date_str, DATE_FORMAT).strftime("%d.%m.%Y")
+        product_id: int,
+        start_date: str,
+        end_date: str
+    ) -> str:
+        start_fmt = datetime.strptime(start_date, DATE_FORMAT).strftime("%d.%m.%Y")
+        end_fmt = datetime.strptime(end_date, DATE_FORMAT).strftime("%d.%m.%Y")
+        return f"https://mpstats.io/wb/item/{product_id}?d1={start_fmt}&d2={end_fmt}"
 
-        return await bot.send_message(
-            chat_id=chat_id,
-            text=(
-                f"Товар №{position}\n"
-                f"<a href='https://www.wildberries.ru/catalog/{product.id}/detail.aspx'>Wildberries</a>\n"
-                f"<a href='https://mpstats.io/wb/item/{product.id}?d1={start_date}&d2={end_date}'>MPStats</a>\n"
-                f"Выручка: {product.revenue:,} ₽\n"
-                f"Оборачиваемость: {product.turnover_days} дн."
-            ),
-            parse_mode="HTML"
-        )
+    def _format_currency(self, value: float) -> str:
+        return f"{int(value):,} ₽".replace(',', ' ') if value > 0 else "Нет данных"
 
-    async def _send_pagination_controls(
-        self,
-        bot: Bot,
-        chat_id: int,
-        current_page: int,
-        total_pages: int,
-        products: list
-    ) -> types.Message:
-        """Кнопки пагинации"""
-        builder = InlineKeyboardBuilder()
-        if current_page > 0:
-            builder.button(text="⬅ Назад", callback_data=f"prev_{current_page}")
-        if (current_page + 1) * PRODUCTS_PER_PAGE < len(products):
-            builder.button(text="Вперед ➡", callback_data=f"next_{current_page}")
-        
-        return await bot.send_message(
-            chat_id=chat_id,
-            text=f"Страница {current_page + 1} из {total_pages}",
-            reply_markup=builder.as_markup()
-        )
+    def _create_excel(self, df: pd.DataFrame) -> BytesIO:
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            df.to_excel(writer, index=False, sheet_name='Товары')
+            
+            workbook = writer.book
+            worksheet = writer.sheets['Товары']
+            
+            columns_config = {
+                'A': 10,  # №
+                'B': 50,  # Название
+                'C': 20,  # Выручка
+                'D': 20,  # Оборачиваемость
+                'E': 50,  # Ссылка WB
+                'F': 60   # MPStats
+            }
+            
+            for col, width in columns_config.items():
+                worksheet.set_column(f'{col}:{col}', width)
+                
+        output.seek(0)
+        return output
 
-
-paginator = PaginationManager()
+report_generator = ExcelReportGenerator()
 
 
 async def products_command(message: types.Message, bot: Bot) -> None:
-    """Обработчик команды /products"""
-    start_date = (datetime.now() - timedelta(days=30)).strftime(DATE_FORMAT)
-    end_date = datetime.now().strftime(DATE_FORMAT)
-    
-    await paginator.send_page(
-        chat_id=message.chat.id,
-        user_id=message.from_user.id,
-        page=0,
-        bot=bot,
-        start_date=start_date,
-        end_date=end_date
-    )
+    try:
+        now = datetime.now()
+        end_date = (now - timedelta(days=1)).strftime(DATE_FORMAT)
+        start_date = (now - timedelta(days=30)).strftime(DATE_FORMAT)
+        category = DEFAULT_CATEGORY
 
+        processing_msg = await message.answer("⏳ Формируем отчет...")
+        excel_file = await report_generator.generate_excel_report(start_date, end_date)
 
-async def handle_callback(callback: types.CallbackQuery, bot: Bot) -> None:
-    """Обработчик действий пагинации"""
-    user_id = callback.from_user.id
-    action, current_page = callback.data.split('_', 1)
-    current_page = int(current_page)
+        
+        caption = (
+            "📊 Отчет по товарам\n\n"
+            "📋 Параметры генерации:\n"
+            f"• Дата начала: {start_date}\n"
+            f"• Дата окончания: {end_date}\n"
+            f"• Категория: {category}"
+        )
+        
+        await message.answer_document(
+            types.BufferedInputFile(
+                file=excel_file.getvalue(),
+                filename=f"WB_report_{datetime.now().strftime('%d.%m.%Y')}.xlsx"
+            ),
+            caption=caption
+        )
 
-    session_data = paginator.user_sessions.get(user_id, {})
-    new_page = current_page - 1 if action == "prev" else current_page + 1
-    
-    await paginator.send_page(
-        chat_id=callback.message.chat.id,
-        user_id=user_id,
-        page=new_page,
-        bot=bot,
-        start_date=session_data.get('start_date'),
-        end_date=session_data.get('end_date')
-    )
-    await callback.answer()
-
+        await bot.delete_message(
+            chat_id=processing_msg.chat.id,
+            message_id=processing_msg.message_id
+        )
+        
+    except Exception as e:
+        logger.error(f"Ошибка команды: {str(e)}")
+        await message.answer(f"❌ Ошибка: {str(e)}")
 
 def setup(dp: Dispatcher) -> None:
     dp.message.register(products_command, Command("products"))
-    dp.callback_query.register(handle_callback)
-    logger.info("Хендлеры успешно зарегистрированы")
+    logger.info("Команда /products зарегистрирована")

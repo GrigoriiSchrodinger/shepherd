@@ -1,3 +1,4 @@
+import json
 import logging
 from typing import List, Dict
 
@@ -7,37 +8,39 @@ logger = logging.getLogger(__name__)
 
 
 class Product:
-    def __init__(self, data: Dict):
-        self.id = data.get("id")
-        self.name = data.get("name")
-        self.revenue = data.get("revenue")
-        self.turnover_days = data.get("turnover_days")
-        self.graph = data.get("graph", [])
+    def __init__(self, data: dict):
+        self.raw_data = data  # Полные сырые данные
+        self.id = data.get('nm_id', data.get('id', data.get('barcode')))
+        self.name = data.get('name', 'Без названия')
+        self.revenue = data.get('revenue', 0)
+        logger.debug(f"Создан продукт: {self.id}")
 
-    def __repr__(self):
-        return f"Product(id={self.id}, name={self.name}, revenue={self.revenue}, turnover_days={self.turnover_days})"
-
-    def has_drop(self, drop_percentage: float) -> bool:
-        """
-        Проверяет, есть ли скачок в графике продаж на заданный процент.
-
-        :param drop_percentage: Процент скачка
-        :return: True, если скачок присутствует, иначе False
-        """
-        if not self.graph or len(self.graph) < 2:
-            return False
-
-        for i in range(1, len(self.graph)):
-            if self.graph[i] < self.graph[i - 1]:
-                drop = (self.graph[i - 1] - self.graph[i]) / self.graph[i - 1] * 100
-                if drop >= drop_percentage:
-                    return True
-        return False
+    def _parse_nested_value(self, key: str, data: dict):
+        """Рекурсивный поиск значения в данных"""
+        for k, v in data.items():
+            if k == key:
+                return v
+            if isinstance(v, dict):
+                found = self._parse_nested_value(key, v)
+                if found is not None:
+                    return found
+            elif isinstance(v, list):
+                for item in v:
+                    if isinstance(item, dict):
+                        found = self._parse_nested_value(key, item)
+                        if found is not None:
+                            return found
+        return None
 
 
 class MpstatsData:
-    def __init__(self, data: List[Dict]):
-        self.products = [Product(product_data) for product_data in data]
+    def __init__(self, raw_data: list):
+        self.products: List[Product] = []
+        try:
+            self.products = [Product(item) for item in raw_data]
+            logger.info(f"Обработано продуктов: {len(self.products)}")
+        except Exception as e:
+            logger.error(f"Ошибка парсинга данных: {str(e)}")
 
     def filter_products(self, max_turnover_days: int, min_revenue: float) -> List[Product]:
         """
