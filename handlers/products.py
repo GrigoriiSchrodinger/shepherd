@@ -13,7 +13,7 @@ from api.mpstats_module import MpstatsData, Product
 from config import logger
 
 DATE_FORMAT = "%Y-%m-%d"
-DEFAULT_CATEGORY = "Женщинам/Толстовки, свитшоты и худи"
+DEFAULT_CATEGORY = "Женщинам/Для высоких"
 
 class ExcelReportGenerator:
     def __init__(self):
@@ -71,19 +71,24 @@ class ExcelReportGenerator:
     ) -> pd.DataFrame:
         report = []
         logger.info(f"Обработка {len(products)} продуктов")
+        idx = 1 
         
-        for idx, product in enumerate(products, 1):
+        for product in products:
             try:
-                report.append({
-                    '№': idx,
-                    'Название': product.name,
-                    'Выручка': self._format_currency(getattr(product, 'revenue', 0)),
-                    'Оборачиваемость': self._get_turnover_value(product.raw_data),
-                    'Ссылка WB': self._get_wb_link(product.id),
-                    'MPStats': self._build_mpstats_link(product.id, start_date, end_date)
-                })
+                if product.turnover_days < 10 and product.revenue > 300000:
+                    report.append({
+                        '№': idx,
+                        'Название': product.name,
+                        'Выручка': self._format_currency(getattr(product, 'revenue', 0)),
+                        'Оборачиваемость': self._get_turnover_value(product.raw_data),
+                        'Ссылка WB': self._get_wb_link(product.id),
+                        'MPStats': self._build_mpstats_link(product.id, start_date, end_date)
+                    })
+                    idx += 1
             except Exception as e:
-                logger.error(f"Ошибка обработки продукта #{idx}: {str(e)}")
+                original_idx = products.index(product) + 1
+                logger.error(f"Ошибка обработки продукта #{original_idx}: {str(e)}")
+                
         return pd.DataFrame(report)
 
     def _get_turnover_value(self, raw_data: Dict) -> str:

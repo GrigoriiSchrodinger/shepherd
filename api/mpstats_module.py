@@ -4,10 +4,11 @@ from config import logger
 
 class Product:
     def __init__(self, data: dict):
-        self.raw_data = data  # Полные сырые данные
+        self.raw_data = data
         self.id = data.get('nm_id', data.get('id', data.get('barcode')))
         self.name = data.get('name', 'Без названия')
         self.revenue = data.get('revenue', 0)
+        self.turnover_days = data.get('turnover_days', 0)
         logger.debug(f"Создан продукт: {self.id}")
 
     def _parse_nested_value(self, key: str, data: dict):
