@@ -1,3 +1,4 @@
+import json
 import os
 import logging
 import colorlog
@@ -32,6 +33,19 @@ logger.addHandler(file_handler)
 logger.setLevel(logging.INFO)
 
 load_dotenv()
+
+class JsonFormatter(logging.Formatter):
+    def format(self, record):
+        log_data = {
+            "timestamp": self.formatTime(record, self.datefmt),
+            "level": record.levelname,
+            "message": record.getMessage(),
+            "logger": record.name,
+            **getattr(record, "context", {})
+        }
+        return json.dumps(log_data)
+
+file_handler.setFormatter(JsonFormatter())
 
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 MPSTATS_API_TOKEN = os.getenv('MPSTATS_API_TOKEN')
