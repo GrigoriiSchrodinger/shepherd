@@ -49,3 +49,6 @@ file_handler.setFormatter(JsonFormatter())
 
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 MPSTATS_API_TOKEN = os.getenv('MPSTATS_API_TOKEN')
+
+DATE_FORMAT = "%Y-%m-%d"
+DEFAULT_CATEGORY = "Женщинам/Для высоких"
