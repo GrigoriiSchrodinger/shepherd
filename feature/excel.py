@@ -8,7 +8,7 @@ import pandas as pd
 
 from api.mpstats_api import MpstatsAPI
 from api.mpstats_module import MpstatsData, Product
-from config import logger, DATE_FORMAT, DEFAULT_CATEGORY
+from config import logger, DATE_FORMAT
 
 
 # === Базовый класс ===
@@ -59,7 +59,7 @@ class MpstatsExcelReport(BaseExcelReport):
         self.api = MpstatsAPI(os.getenv("MPSTATS_API_TOKEN"))
         logger.info("🔧 Генератор MPStats-отчетов инициализирован")
 
-    async def generate(self, start_date: str, end_date: str, category: str = DEFAULT_CATEGORY) -> BytesIO:
+    async def generate(self, start_date: str, end_date: str, category: str) -> BytesIO:
         """Основной метод генерации отчёта."""
         try:
             self._validate_dates(start_date, end_date)

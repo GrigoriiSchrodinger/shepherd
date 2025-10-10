@@ -4,6 +4,8 @@ import logging
 import colorlog
 from dotenv import load_dotenv
 
+from database.user_repository import UserRepository
+
 logger = logging.getLogger()
 
 console_handler = colorlog.StreamHandler()
@@ -51,4 +53,5 @@ TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 MPSTATS_API_TOKEN = os.getenv('MPSTATS_API_TOKEN')
 
 DATE_FORMAT = "%Y-%m-%d"
-DEFAULT_CATEGORY = "Женщинам/Для высоких"
+
+database = UserRepository('bot.db')

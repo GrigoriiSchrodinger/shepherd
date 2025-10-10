@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from aiogram import Dispatcher, types, Bot
 from aiogram.filters import Command
 
-from config import logger, DATE_FORMAT, DEFAULT_CATEGORY
+from config import logger, DATE_FORMAT, database
 from feature.excel import MpstatsExcelReport
 
 # === Интеграция с Telegram ===
@@ -13,18 +13,20 @@ report_generator = MpstatsExcelReport()
 async def products_command(message: types.Message, bot: Bot) -> None:
     """Команда Telegram /products — генерация отчёта."""
     try:
+        user_data = database.get_user(message.from_user.username)
+        dates_user_data = int(user_data.get("dates"))
+        category_user_data = user_data.get("category")
         now = datetime.now()
         end_date = (now - timedelta(days=1)).strftime(DATE_FORMAT)
-        start_date = (now - timedelta(days=30)).strftime(DATE_FORMAT)
-        category = DEFAULT_CATEGORY
+        start_date = (now - timedelta(days=dates_user_data)).strftime(DATE_FORMAT)
 
         processing_msg = await message.answer("⏳ Формируем отчёт...")
-        excel_file = await report_generator.generate(start_date, end_date, category)
+        excel_file = await report_generator.generate(start_date, end_date, category_user_data)
 
         caption = (
             "📊 Отчёт по товарам\n\n"
             f"📅 Период: {start_date} — {end_date}\n"
-            f"🏷 Категория: {category}"
+            f"🏷 Категория: {category_user_data}"
         )
 
         await message.answer_document(
