@@ -59,12 +59,12 @@ class MpstatsExcelReport(BaseExcelReport):
         self.api = MpstatsAPI(os.getenv("MPSTATS_API_TOKEN"))
         logger.info("🔧 Генератор MPStats-отчетов инициализирован")
 
-    async def generate(self, start_date: str, end_date: str, category: str) -> BytesIO:
+    async def generate(self, start_date: str, end_date: str, category: str, turnover_days_max: int, revenue_min: int) -> BytesIO:
         """Основной метод генерации отчёта."""
         try:
             self._validate_dates(start_date, end_date)
             products, _ = await self._fetch_api_data(start_date, end_date, category)
-            df = self._prepare_dataframe(products, start_date, end_date)
+            df = self._prepare_dataframe(products, start_date, end_date, turnover_days_max, revenue_min)
             return self._create_excel(df, self._get_columns_config(), "Товары")
 
         except Exception as e:
@@ -80,14 +80,14 @@ class MpstatsExcelReport(BaseExcelReport):
         items = raw_data.get("data", []) if isinstance(raw_data, dict) else raw_data
         return MpstatsData(items).products, raw_data
 
-    def _prepare_dataframe(self, products: List[Product], start_date: str, end_date: str) -> pd.DataFrame:
+    def _prepare_dataframe(self, products: List[Product], start_date: str, end_date: str, turnover_days_max: int, revenue_min: int) -> pd.DataFrame:
         """Создаёт DataFrame для отчёта."""
         report_rows = []
         logger.info(f"📦 Обработка {len(products)} товаров")
 
         for idx, product in enumerate(products, start=1):
             try:
-                if product.turnover_days < 10 and product.revenue > 300_000:
+                if product.turnover_days < turnover_days_max and product.revenue > revenue_min:
                     report_rows.append({
                         "№": idx,
                         "Название": product.name,
