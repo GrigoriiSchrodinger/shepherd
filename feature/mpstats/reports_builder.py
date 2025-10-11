@@ -25,6 +25,7 @@ class ProductReportService:
             category = user_data["category"]
             turnover_days_max = user_data["turnover_days_max"]
             revenue_min = user_data["revenue_min"]
+            drop_threshold_percent = user_data["percent"]
 
             # Расчёт диапазона дат
             now = datetime.now()
@@ -34,7 +35,7 @@ class ProductReportService:
             logger.info(f"Формирование отчёта для {username}: {start_date} — {end_date}, {category}")
 
             # Генерация Excel
-            excel_file = await self.report_generator.generate_report(start_date, end_date, category, turnover_days_max, revenue_min)
+            excel_file = await self.report_generator.generate_report(start_date, end_date, category, turnover_days_max, revenue_min, drop_threshold_percent)
 
             # Подготовка описания
             caption = (

@@ -12,7 +12,9 @@ def init_db():
                 dates INTEGER NOT NULL,
                 turnover_days_max INTEGER NOT NULL,
                 revenue_min INTEGER NOT NULL,
-                category TEXT NOT NULL
+                category TEXT NOT NULL,
+                percent REAL DEFAULT 20,
+                access_until TEXT DEFAULT NULL
             )
         ''')
         conn.commit()

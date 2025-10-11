@@ -9,6 +9,8 @@ class Product:
         self.name = data.get('name', 'Без названия')
         self.revenue = data.get('revenue', 0)
         self.turnover_days = data.get('turnover_days', 0)
+        self.sku_first_date = data.get('sku_first_date', 0)
+        self.stocks_graph = data.get('stocks_graph', [])
         logger.debug(f"Создан продукт: {self.id}")
 
     def _parse_nested_value(self, key: str, data: dict):

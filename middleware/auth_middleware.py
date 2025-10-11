@@ -1,7 +1,8 @@
 from typing import Awaitable, Callable, Dict, Any
 from aiogram import types
 from database.user_repository import UserRepository
-from config import logger  # Импортируем настроенный логгер
+from config import logger
+from datetime import datetime
 
 class AuthMiddleware:
     def __init__(self):
@@ -14,12 +15,11 @@ class AuthMiddleware:
         data: Dict[str, Any]
     ) -> Any:
         user = event.from_user
-        user_id = user.id
         username = user.username or "no_username"
         command = event.text or "no_command"
 
         log_context = {
-            "user_id": user_id,
+            "user_id": user.id,
             "username": username,
             "command": command,
             "chat_type": event.chat.type,
@@ -27,24 +27,37 @@ class AuthMiddleware:
             "timestamp": event.date.isoformat()
         }
 
+        # === Проверка наличия username ===
         if not user.username:
-            logger.warning(
-                "Access attempt without username", 
-                extra={"context": log_context}
-            )
+            logger.warning("Access attempt without username", extra={"context": log_context})
             await event.answer("❌ Для использования бота требуется Telegram username")
             return
 
+        # === Проверка, есть ли пользователь в БД ===
         if not self.user_repo.user_exists(user.username):
-            logger.warning(
-                "Unauthorized access attempt",
-                extra={"context": log_context}
-            )
+            logger.warning("Unauthorized access attempt", extra={"context": log_context})
             await event.answer("🔒 Доступ запрещён. Ваш username не зарегистрирован")
             return
 
-        logger.info(
-            "Successful access", 
-            extra={"context": log_context}
-        )
+        # === Проверка срока доступа ===
+        user_data = self.user_repo.get_user(user.username)
+        access_until = user_data.get("access_until", "01.01.2000")
+
+        try:
+            access_date = datetime.strptime(access_until, "%d.%m.%Y").date()
+        except ValueError:
+            access_date = datetime(2000, 1, 1).date()  # fallback
+
+        today = datetime.today().date()
+
+        if access_date < today:
+            logger.warning(
+                f"Access denied — expired ({access_until})",
+                extra={"context": log_context}
+            )
+            await event.answer("⛔️ Ваш доступ истёк. Обратитесь к администратору для продления.")
+            return
+
+        # === Всё ок — продолжаем ===
+        logger.info("Successful access", extra={"context": log_context})
         return await handler(event, data)

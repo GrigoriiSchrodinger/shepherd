@@ -8,6 +8,7 @@ class UserRepository:
         self._pending_edits = {}
 
     def _create_table(self):
+        """Создаём таблицу с новыми полями percent и access_until"""
         with self.conn:
             self.conn.execute('''
                 CREATE TABLE IF NOT EXISTS users (
@@ -16,7 +17,9 @@ class UserRepository:
                     dates INTEGER NOT NULL,
                     turnover_days_max INTEGER NOT NULL,
                     revenue_min INTEGER NOT NULL,
-                    category TEXT NOT NULL
+                    category TEXT NOT NULL,
+                    percent REAL DEFAULT 0,
+                    access_until TEXT DEFAULT NULL
                 )
             ''')
 
@@ -28,7 +31,8 @@ class UserRepository:
     def add_user(self, user_data: Dict):
         query = '''
             INSERT OR REPLACE INTO users 
-            VALUES (?, ?, ?, ?, ?, ?)
+            (username, rights, dates, turnover_days_max, revenue_min, category, percent, access_until)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         '''
         self.conn.execute(query, (
             user_data['username'],
@@ -36,7 +40,9 @@ class UserRepository:
             user_data['dates'],
             user_data['turnover_days_max'],
             user_data['revenue_min'],
-            user_data['category']
+            user_data['category'],
+            user_data.get('percent', 0),
+            user_data.get('access_until', None)
         ))
         self.conn.commit()
 
@@ -51,11 +57,13 @@ class UserRepository:
                 'dates': row[2],
                 'turnover_days_max': row[3],
                 'revenue_min': row[4],
-                'category': row[5]
+                'category': row[5],
+                'percent': row[6],
+                'access_until': row[7]
             }
         return None
 
-    # ✅ Запоминаем, что пользователь редактирует параметр
+    # ✅ Методы для работы с редактированием
     def set_pending_edit(self, username: str, param: str, target: str):
         self._pending_edits[username] = {"param": param, "target": target}
 
@@ -76,7 +84,6 @@ class UserRepository:
         self._update_field(username, param, value)
 
     # === Вспомогательный метод ===
-
     def _update_field(self, username: str, field: str, value):
         with self.conn:
             self.conn.execute(
