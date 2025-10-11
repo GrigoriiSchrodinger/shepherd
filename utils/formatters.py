@@ -32,3 +32,12 @@ def format_revenue(amount: int) -> str:
 def escape_md(text: str) -> str:
     """Экранирует специальные символы Markdown."""
     return re.sub(r'([_*\[\]()~`>#+\-=|{}.!])', r'\\\1', text)
+
+def format_category(text: str) -> str:
+    """
+    Форматирование категории: убираем лишние пробелы вокруг каждого элемента.
+    Пример: "Спорт / Для мужчин / Одежда" -> "Спорт/Для мужчин/Одежда"
+    """
+    parts = [part.strip() for part in text.split("/")]
+    return "/".join(parts)
+

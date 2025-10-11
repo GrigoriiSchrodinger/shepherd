@@ -85,11 +85,11 @@ def check_edit_permission(current_user: str, target_username: str) -> bool:
         return True
 
     # admin может moder и user
-    if current["rights"] == "admin" and target["role"] in ("moder", "user"):
+    if current["rights"] == "admin" and target["rights"] in ("moder", "user"):
         return True
 
     # moder может только user
-    if current["rights"] == "moder" and target["role"] == "user":
+    if current["rights"] == "moder" and target["rights"] == "user":
         return True
 
     # user — только себя

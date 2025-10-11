@@ -7,7 +7,7 @@ from middleware.permissions import rights_required
 report_service = ProductReportService(database)
 
 
-@rights_required(["root", "admin", "moder"])
+@rights_required(["root", "admin", "moder", "user"])
 async def products_command(message: types.Message, bot: Bot) -> None:
     """Aiogram-команда /products — формирует Excel-отчёт."""
     username = message.from_user.username or "unknown_user"
