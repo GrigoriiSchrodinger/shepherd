@@ -30,8 +30,8 @@ def format_revenue(amount: int) -> str:
     return f"{amount:,}".replace(",", " ") + " ₽"
 
 def escape_md(text: str) -> str:
-    """Экранирует специальные символы Markdown."""
-    return re.sub(r'([_*\[\]()~`>#+\-=|{}.!])', r'\\\1', text)
+    """Больше не экранируем Markdown, просто возвращаем строку."""
+    return str(text) if text is not None else ""
 
 def format_category(text: str) -> str:
     """

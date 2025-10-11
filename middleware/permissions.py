@@ -26,7 +26,7 @@ def rights_required(allowed_rights: list, self_only_rights: list = None):
             if not user_data:
                 await message.answer(
                     f"❌ У вас нет доступа. Пользователь `{username}` не найден в базе данных.",
-                    parse_mode="Markdown"
+                    parse_mode=None
                 )
                 logger.warning(f"Пользователь {username} не найден в БД.")
                 return
