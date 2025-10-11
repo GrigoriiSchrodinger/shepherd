@@ -1,3 +1,4 @@
+import re
 from datetime import datetime
 from config import DATE_FORMAT
 
@@ -23,3 +24,11 @@ def build_mpstats_link(product_id: int, start_date: str, end_date: str) -> str:
     start_fmt = datetime.strptime(start_date, DATE_FORMAT).strftime("%d.%m.%Y")
     end_fmt = datetime.strptime(end_date, DATE_FORMAT).strftime("%d.%m.%Y")
     return f"https://mpstats.io/wb/item/{product_id}?d1={start_fmt}&d2={end_fmt}"
+
+def format_revenue(amount: int) -> str:
+    """Форматирует выручку для человека: разделяем тысячи и добавляем ₽."""
+    return f"{amount:,}".replace(",", " ") + " ₽"
+
+def escape_md(text: str) -> str:
+    """Экранирует специальные символы Markdown."""
+    return re.sub(r'([_*\[\]()~`>#+\-=|{}.!])', r'\\\1', text)

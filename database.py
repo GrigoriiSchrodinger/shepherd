@@ -16,3 +16,15 @@ def init_db():
             )
         ''')
         conn.commit()
+
+
+_pending_edits = {}
+
+def set_pending_edit(username: str, param: str, target: str):
+    _pending_edits[username] = {"param": param, "target": target}
+
+def get_pending_edit(username: str):
+    return _pending_edits.get(username)
+
+def clear_pending_edit(username: str):
+    _pending_edits.pop(username, None)

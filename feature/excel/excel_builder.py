@@ -4,7 +4,6 @@ import pandas as pd
 
 class ExcelBuilder:
     """Утилита для построения Excel-файлов из DataFrame."""
-
     def __init__(self, sheet_name: str = "Отчёт"):
         self.sheet_name = sheet_name
 
