@@ -1,7 +1,7 @@
 from aiogram import Dispatcher, types, Bot
 from aiogram.filters import Command
 from config import logger, database
-from feature.excel.reports import ProductReportService
+from feature.mpstats.reports_builder import ProductReportService
 
 report_service = ProductReportService(database)
 

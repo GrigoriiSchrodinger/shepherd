@@ -1,7 +1,8 @@
 from datetime import datetime, timedelta
-from config import DATE_FORMAT, logger
+from config import DATE_FORMAT
+from feature.mpstats.mpstats_reports import MpstatsExcelReport
 
-from feature.excel.excel import MpstatsExcelReport
+from config import logger
 
 
 class ProductReportService:
@@ -33,7 +34,7 @@ class ProductReportService:
             logger.info(f"Формирование отчёта для {username}: {start_date} — {end_date}, {category}")
 
             # Генерация Excel
-            excel_file = await self.report_generator.generate(start_date, end_date, category, turnover_days_max, revenue_min)
+            excel_file = await self.report_generator.generate_report(start_date, end_date, category, turnover_days_max, revenue_min)
 
             # Подготовка описания
             caption = (
