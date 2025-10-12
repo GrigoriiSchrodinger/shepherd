@@ -28,13 +28,13 @@ class UserRepository:
         if not self.user_exists("ScrodingerGrigorii"):
             default_user = {
                 "username": "ScrodingerGrigorii",
-                "rights": "user",
+                "rights": "root",
                 "dates": 30,
                 "turnover_days_max": 30,
                 "revenue_min": 300000,
                 "category": "Женщинам",
                 "percent": 20.0,
-                "access_until": "2026-01-09"
+                "access_until": "31.12.2099"
             }
             self.add_user(default_user)
 

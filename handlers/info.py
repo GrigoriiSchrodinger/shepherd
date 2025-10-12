@@ -301,7 +301,7 @@ async def cmd_help(message: types.Message):
 
     rights = user_data.get("rights")
 
-    if rights =="admin":
+    if rights =="root":
         text = HELP_TEXT_ROOT
     elif rights == "admin":
         text = HELP_TEXT_ADMIN
