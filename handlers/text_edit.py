@@ -53,6 +53,7 @@ async def handle_text_edit(message: types.Message):
         database.update_user_param(target_username, param, value)
         await message.answer(f"Обновили категорию - {value}")
         return
+
     database.update_user_param(target_username, param, value)
     await message.answer(PARAMETER_FOR_UPDATED.format(param=param, value=value))
 
