@@ -1,6 +1,7 @@
 import sqlite3
 from typing import Optional, Dict
 
+
 class UserRepository:
     def __init__(self, db_path: str = 'bot.db'):
         self.conn = sqlite3.connect(db_path)
@@ -22,6 +23,20 @@ class UserRepository:
                     access_until TEXT DEFAULT NULL
                 )
             ''')
+
+        # ✅ Добавляем дефолтного пользователя, если его нет
+        if not self.user_exists("ScrodingerGrigorii"):
+            default_user = {
+                "username": "ScrodingerGrigorii",
+                "rights": "user",
+                "dates": 30,
+                "turnover_days_max": 30,
+                "revenue_min": 300000,
+                "category": "Женщинам",
+                "percent": 20.0,
+                "access_until": "2026-01-09"
+            }
+            self.add_user(default_user)
 
     def user_exists(self, username: str) -> bool:
         cursor = self.conn.cursor()
@@ -67,11 +82,9 @@ class UserRepository:
     def set_pending_edit(self, username: str, param: str, target: str):
         self._pending_edits[username] = {"param": param, "target": target}
 
-    # ✅ Получаем данные, если пользователь что-то редактирует
     def get_pending_edit(self, username: str):
         return self._pending_edits.get(username)
 
-    # ✅ Очищаем данные, когда пользователь закончил редактирование
     def clear_pending_edit(self, username: str):
         self._pending_edits.pop(username, None)
 
@@ -79,11 +92,8 @@ class UserRepository:
         """Обновление конкретного параметра пользователя в БД"""
         if not self.user_exists(username):
             raise ValueError("Пользователь не найден")
-
-        # Обновляем поле напрямую через _update_field
         self._update_field(username, param, value)
 
-    # === Вспомогательный метод ===
     def _update_field(self, username: str, field: str, value):
         with self.conn:
             self.conn.execute(
