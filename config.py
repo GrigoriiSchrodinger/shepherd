@@ -55,6 +55,9 @@ file_handler.setFormatter(JsonFormatter())
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 MPSTATS_API_TOKEN = os.getenv('MPSTATS_API_TOKEN')
 
+BASE_URL = "https://mpstats.io/api"
+MAX_PAGE_SIZE = 5000
+MAX_TOTAL_PRODUCTS = 100_000
 DATE_FORMAT = "%Y-%m-%d"
 
 database = UserRepository('bot.db')

@@ -25,18 +25,18 @@ class MpstatsExcelReport(BaseExcelReport):
         logger.info("🔧 Генератор MPStats-отчетов инициализирован")
 
     async def generate_report(
-        self,
-        start_date: str,
-        end_date: str,
-        category: str,
-        turnover_days_max: int,
-        revenue_min: int,
-        drop_threshold_percent: float
+            self,
+            start_date: str,
+            end_date: str,
+            category: str,
+            turnover_days_max: int,
+            revenue_min: int,
+            drop_threshold_percent: float
     ):
         """Основной метод генерации отчёта."""
         try:
             self.validate_dates(start_date, end_date)
-            products, _ = await self._fetch_api_data(start_date, end_date, category)
+            products, _ = await self._fetch_api_data(start_date, end_date, category, revenue_min, turnover_days_max)
             df = self._prepare_dataframe(products, start_date, end_date, turnover_days_max, revenue_min, drop_threshold_percent)
             return self.excel.build(df, self._get_columns_config())
 
@@ -44,10 +44,10 @@ class MpstatsExcelReport(BaseExcelReport):
             logger.error(f"Ошибка при создании отчёта: {e}", exc_info=True)
             raise
 
-    async def _fetch_api_data(self, start_date: str, end_date: str, category: str) -> Tuple[List[Product], dict]:
+    async def _fetch_api_data(self, start_date: str, end_date: str, category: str, revenue_min: int, turnover_days_max: int) -> Tuple[List[Product], dict]:
         """Получает данные из MPStats API."""
         logger.info(f"📡 Запрос данных для категории '{category}' с {start_date} по {end_date}")
-        raw_data = await self.api.get_category_data(start_date, end_date, category)
+        raw_data = await self.api.get_category_data(start_date, end_date, category, revenue_min, turnover_days_max)
         logger.debug("Полный ответ API:\n%s", json.dumps(raw_data, indent=2, ensure_ascii=False))
 
         items = raw_data.get("data", []) if isinstance(raw_data, dict) else raw_data
@@ -104,21 +104,23 @@ class MpstatsExcelReport(BaseExcelReport):
 
         filtered = []
         for p in products:
-            # Проверяем оборот и выручку
-            if p.turnover_days >= turnover_days_max or p.revenue <= revenue_min:
+            turnover = p.turnover_days or 0
+            revenue = p.revenue or 0
+
+            # Фильтр
+            if turnover >= turnover_days_max or revenue <= revenue_min:
                 continue
 
-            # Проверяем sku_first_date
+            # Проверка sku_first_date
             if p.sku_first_date:
                 try:
                     sku_dt = datetime.strptime(p.sku_first_date, "%Y-%m-%d")
                     if not (start_dt <= sku_dt <= end_dt):
                         continue
                 except Exception:
-                    # если дата некорректная, пропускаем фильтр
                     pass
 
-            # Проверяем резкое падение остатков
+            # Проверка резкого падения
             stocks_graph = p.raw_data.get("stocks_graph", [])
             if not has_sharp_drop(stocks_graph):
                 continue
