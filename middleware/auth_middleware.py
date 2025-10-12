@@ -3,6 +3,7 @@ from aiogram import types
 from database.user_repository import UserRepository
 from config import logger
 from datetime import datetime
+from text import *
 
 class AuthMiddleware:
     def __init__(self):
@@ -30,13 +31,13 @@ class AuthMiddleware:
         # === Проверка наличия username ===
         if not user.username:
             logger.warning("Access attempt without username", extra={"context": log_context})
-            await event.answer("❌ Для использования бота требуется Telegram username")
+            await event.answer(AUTH_NO_USERNAME)
             return
 
         # === Проверка, есть ли пользователь в БД ===
         if not self.user_repo.user_exists(user.username):
             logger.warning("Unauthorized access attempt", extra={"context": log_context})
-            await event.answer("🔒 Доступ запрещён. Ваш username не зарегистрирован")
+            await event.answer(AUTH_NOT_REGISTERED)
             return
 
         # === Проверка срока доступа ===
@@ -55,7 +56,7 @@ class AuthMiddleware:
                 f"Access denied — expired ({access_until})",
                 extra={"context": log_context}
             )
-            await event.answer("⛔️ Ваш доступ истёк. Обратитесь к администратору для продления.")
+            await event.answer(AUTH_ACCESS_EXPIRED)
             return
 
         # === Всё ок — продолжаем ===

@@ -1,5 +1,7 @@
 from aiogram import types, Dispatcher
 from config import database
+from text import INCORRECT_FORMAT_FOR, PARAMETER_FOR_UPDATED, NO_EDITING_RIGHTS_USER
+
 
 async def handle_text_edit(message: types.Message):
     current_user = message.from_user.username or str(message.from_user.id)
@@ -13,7 +15,7 @@ async def handle_text_edit(message: types.Message):
 
     from middleware.permissions import check_edit_permission
     if not check_edit_permission(current_user, target_username):
-        await message.answer("🚫 У вас нет прав редактировать этого пользователя.")
+        await message.answer(NO_EDITING_RIGHTS_USER)
         database.clear_pending_edit(current_user)
         return
 
@@ -25,7 +27,7 @@ async def handle_text_edit(message: types.Message):
         elif param == "percent":
             value = float(value)
     except Exception:
-        await message.answer(f"❌ Неверный формат для {param}`")
+        await message.answer(INCORRECT_FORMAT_FOR.format(param=param))
         return
 
     if param.strip() == "category":
@@ -33,9 +35,8 @@ async def handle_text_edit(message: types.Message):
         value = "/".join(parts)
 
     database.update_user_param(target_username, param, value)
-    await message.answer(f"✅ Параметр {param} обновлён на {value}")
+    await message.answer(PARAMETER_FOR_UPDATED.format(param=param, value=value))
 
-    # очищаем pending
     database.clear_pending_edit(current_user)
 
 def setup_handle_text_edit(dp: Dispatcher):

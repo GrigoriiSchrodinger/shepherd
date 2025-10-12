@@ -6,82 +6,77 @@ from aiogram.filters import Command
 
 from config import logger, database
 from middleware.permissions import rights_required, check_edit_permission
+from text import *
 from utils.formatters import escape_md
 
 
 @rights_required(["root", "admin", "moder"], self_only_rights=["moder"])
 async def info_command(message: types.Message):
-    """Показать информацию о пользователе (/info [username])."""
     try:
         args = message.text.split(maxsplit=1)
         current_user = message.from_user.username or str(message.from_user.id)
+        target_username = args[1].lstrip("@") if len(args) > 1 and args[1].strip() else current_user
 
-        if len(args) > 1 and args[1].strip():
-            target_username = args[1].lstrip("@")
-        else:
-            target_username = current_user
-
-        # Проверка существования
         if not database.user_exists(target_username):
-            await message.answer(
-                f"❌ Пользователь `{escape_md(target_username)}` не найден в базе данных.",
-                parse_mode=None
-            )
+            await message.answer(NOT_FOUND_IN_THE_DATABASE.format(target_username=escape_md(target_username)))
             return
 
-        # Проверка прав на просмотр — декоратор уже ограничил вызов для нужных ролей,
-        # но проверим дополнительно через check_edit_permission (moder может только себя)
         if not check_edit_permission(current_user, target_username) and current_user != target_username:
-            await message.answer("🚫 У вас нет прав для просмотра информации об этом пользователе.")
+            await message.answer(NO_VIEWING_RIGHTS)
             return
 
         user_data = database.get_user(target_username)
         if not user_data:
-            await message.answer(f"❌ Не удалось получить данные для `{escape_md(target_username)}`.", parse_mode=None)
+            await message.answer(COULDNT_GET_THE_DATA_FOR.format(target_username=escape_md(target_username)))
             return
 
         is_self = (target_username == current_user)
-        display_name = "себя" if is_self else f"`{escape_md(target_username)}`"
+        display_name = target_username
         rights = user_data.get("rights", "user")
         category = user_data.get("category", "—")
         drop_percent = user_data.get("percent", 0)
         raw_access_until = user_data.get("access_until", "01.01.2000") or "01.01.2000"
-        access_until = "нет доступа" if raw_access_until.strip() == "01.01.2000" else raw_access_until
+        access_until = NO_ACCESS if raw_access_until.strip() == "01.01.2000" else raw_access_until
+
+        # Заголовок
+        if is_self:
+            header = INFO_PARAMS_SELF
+        else:
+            header = INFO_PARAMS_OTHER.format(display_name=display_name)
 
         # Даты
         today = datetime.today().date()
         dates_count = int(user_data.get("dates", 0) or 0)
         end_date = today - timedelta(days=1)
         if dates_count > 0:
-            start_date = end_date - timedelta(days=dates_count - 1)
-            dates_text = f"{dates_count} дней (с {start_date.strftime('%d.%m.%Y')} по {end_date.strftime('%d.%m.%Y')})"
+            start_date = (end_date - timedelta(days=dates_count - 1)).strftime('%d.%m.%Y')
+            dates_text = DAYS_FROM.format(
+                dates_count=dates_count,
+                start_date=start_date,
+                end_date=end_date.strftime('%d.%m.%Y')
+            )
         else:
-            dates_text = "нет установленного периода"
+            dates_text = THERE_IS_NO_SET_PERIOD
 
-        # Формируем текст с экранированием
-        info_text = f"ℹ️ Информация о пользователе {display_name}:\n\n"
-        # Не показываем права, если target — moder и запрашивает он сам (как у тебя было раньше)
-        if not (rights == "moder" and is_self):
-            info_text += f"Права: `{escape_md(str(rights))}`\n"
-        info_text += (
-            f"Даты: {escape_md(dates_text)}\n"
-            f"Максимум дней оборота: `{escape_md(str(user_data.get('turnover_days_max', '—')))}`\n"
-            f"Минимальная выручка: `{escape_md(str(user_data.get('revenue_min', '—')))}`\n"
-            f"Категория: `{escape_md(str(category))}`\n"
-            f"Порог падения (%): `{escape_md(str(drop_percent))}`\n"
-            f"Доступ до: `{escape_md(str(access_until))}`"
+        rights_line = RIGHTS_LINE.format(rights=rights) if not (rights == "moder" and is_self) else ""
+
+        info_text = USER_INFO.format(
+            header=header,
+            rights_line=rights_line,
+            dates_text=dates_text,
+            turnover_days_max=user_data.get("turnover_days_max", "—"),
+            revenue_min=user_data.get("revenue_min", "—"),
+            category=category,
+            drop_percent=drop_percent,
+            access_until=access_until
         )
 
-        # Кнопки редактирования — показываем только если вызывающий имеет право редактировать
         kb = InlineKeyboardBuilder()
         caller = database.get_user(current_user) or {}
         caller_rights = caller.get("rights", "user")
-
-        # проверяем: может ли текущий пользователь редактировать target
         can_edit = check_edit_permission(current_user, target_username)
 
         if can_edit:
-            # формируем список доступных параметров в зависимости от роли вызывающего
             if caller_rights == "root":
                 edit_params = ["rights", "turnover_days_max", "revenue_min", "category", "dates", "percent", "access_until"]
             elif caller_rights == "admin":
@@ -92,13 +87,13 @@ async def info_command(message: types.Message):
                 edit_params = []
 
             labels = {
-                "rights": "🛠 Права",
-                "turnover_days_max": "📈 Оборот",
-                "revenue_min": "💰 Выручка",
-                "category": "🏷 Категория",
-                "dates": "📅 Даты",
-                "percent": "📉 Порог падения %",
-                "access_until": "🔑 Доступ"
+                "rights": RIGHTS,
+                "turnover_days_max": TURNOVER_DAYS_MAX,
+                "revenue_min": REVENUE_MIN,
+                "category": CATEGORY,
+                "dates": DATES,
+                "percent": PERCENT_TEXT,
+                "access_until": ACCESS_UNTIL
             }
 
             for param in edit_params:
@@ -110,7 +105,7 @@ async def info_command(message: types.Message):
 
     except Exception as e:
         logger.exception(f"Ошибка в info_command: {e}")
-        await message.answer("❌ Произошла ошибка при получении информации.", parse_mode=None)
+        await message.answer(AN_ERROR_OCCURRED_IN_RECEIVING_DATA)
 
 
 @rights_required(["root", "admin", "moder"], self_only_rights=["moder"])
@@ -119,14 +114,14 @@ async def edit_param_callback(callback: types.CallbackQuery):
     try:
         data = (callback.data or "").split(":")
         if len(data) != 3:
-            return await callback.answer("Некорректный формат данных", show_alert=True)
+            return await callback.answer(INCORRECT_FORMAT, show_alert=True)
 
         _, param, target_username = data
         current_user = callback.from_user.username or str(callback.from_user.id)
 
         # Проверка прав
         if not check_edit_permission(current_user, target_username):
-            return await callback.answer("🚫 У вас нет прав редактировать этого пользователя.", show_alert=True)
+            return await callback.answer(NO_EDITING_RIGHTS, show_alert=True)
 
         delete_after = []
 
@@ -136,7 +131,7 @@ async def edit_param_callback(callback: types.CallbackQuery):
             for d in [7, 14, 30]:
                 kb.button(text=f"{d} дней", callback_data=f"edit_value:{param}:{d}:{target_username}")
             kb.adjust(3)
-            msg = await callback.message.answer("Выберите количество дней:", reply_markup=kb.as_markup())
+            msg = await callback.message.answer(CHOOSE_DAYS, reply_markup=kb.as_markup())
             delete_after.append(msg)
 
         elif param == "rights":
@@ -144,26 +139,29 @@ async def edit_param_callback(callback: types.CallbackQuery):
             for r in ["root", "admin", "moder", "user"]:
                 kb.button(text=r, callback_data=f"edit_value:{param}:{r}:{target_username}")
             kb.adjust(4)
-            msg = await callback.message.answer("Выберите права:", reply_markup=kb.as_markup())
+            msg = await callback.message.answer(CHOOSE_RIGHTS, reply_markup=kb.as_markup())
             delete_after.append(msg)
 
         elif param == "access_until":
             kb = InlineKeyboardBuilder()
             options = [
-                ("+1 день", 1), ("+14 дней", 14), ("+30 дней", 30),
-                ("+90 дней", 90), ("Бессрочно", 0), ("Удалить доступ", -1)
+                (ACCESS_OPTION_1_DAY, 1),
+                (ACCESS_OPTION_14_DAYS, 14),
+                (ACCESS_OPTION_30_DAYS, 30),
+                (ACCESS_OPTION_90_DAYS, 90),
+                (ACCESS_FOREVER, 0)
             ]
             for label, val in options:
                 kb.button(text=label, callback_data=f"edit_access:{val}:{target_username}")
             kb.adjust(3)
-            msg = await callback.message.answer("Настройка доступа:", reply_markup=kb.as_markup())
+            msg = await callback.message.answer(ACCESS_SETTINGS, reply_markup=kb.as_markup())
             delete_after.append(msg)
 
         else:
             # Обычное текстовое редактирование
             database.set_pending_edit(current_user, param, target_username)
             msg = await callback.message.answer(
-                f"✏️ Введите новое значение для `{escape_md(param)}`:",
+                EDIT_PROMPT.format(param=param),
                 parse_mode=None
             )
             delete_after.append(msg)
@@ -180,7 +178,7 @@ async def edit_param_callback(callback: types.CallbackQuery):
 
     except Exception as e:
         logger.exception(f"Ошибка edit_param_callback: {e}")
-        await callback.answer("Произошла ошибка.", show_alert=True)
+        await callback.answer(GENERIC_ERROR, show_alert=True)
 
 
 @rights_required(["root", "admin", "moder"], self_only_rights=["moder"])
@@ -191,20 +189,20 @@ async def edit_value_callback(callback: types.CallbackQuery):
         current_user = callback.from_user.username or str(callback.from_user.id)
 
         if not data:
-            return await callback.answer("Некорректные данные.", show_alert=True)
+            return await callback.answer(INCORRECT_DATA, show_alert=True)
 
         if data[0] == "edit_value":
             _, param, value, target_username = data
 
             if not check_edit_permission(current_user, target_username):
-                return await callback.answer("🚫 Нет прав для редактирования.", show_alert=True)
+                return await callback.answer(NO_EDITING_RIGHTS, show_alert=True)
 
             if param == "dates":
                 value = int(value)
 
             database.update_user_param(target_username, param, value)
             confirm = await callback.message.answer(
-                f"✅ Параметр `{escape_md(param)}` обновлён на `{escape_md(str(value))}`",
+                PARAMETER_FOR_UPDATED.format(param=escape_md(param), value=escape_md(str(value))),
                 parse_mode=None
             )
             await callback.answer()
@@ -214,7 +212,7 @@ async def edit_value_callback(callback: types.CallbackQuery):
             days = int(days)
 
             if not check_edit_permission(current_user, target_username):
-                return await callback.answer("🚫 Нет прав для редактирования.", show_alert=True)
+                return await callback.answer(NO_EDITING_RIGHTS, show_alert=True)
 
             if days == -1:
                 new_date = "01.01.2000"
@@ -226,13 +224,13 @@ async def edit_value_callback(callback: types.CallbackQuery):
 
             database.update_user_param(target_username, "access_until", new_date)
             confirm = await callback.message.answer(
-                f"✅ Доступ для @{escape_md(target_username)} установлен до `{escape_md(new_date)}`",
+                ACCESS_UPDATED.format(username=escape_md(target_username), date=escape_md(new_date)),
                 parse_mode=None
             )
             await callback.answer()
 
         else:
-            return await callback.answer("Неизвестная команда.", show_alert=True)
+            return await callback.answer(UNKNOWN_COMMAND, show_alert=True)
 
         # Удаляем сообщение с подтверждением через 3 секунды
         await sleep(3)
@@ -243,7 +241,7 @@ async def edit_value_callback(callback: types.CallbackQuery):
 
     except Exception as e:
         logger.exception(f"Ошибка edit_value_callback: {e}")
-        await callback.answer("Произошла ошибка.", show_alert=True)
+        await callback.answer(GENERIC_ERROR, show_alert=True)
 
 
 def setup_info(dp: Dispatcher):

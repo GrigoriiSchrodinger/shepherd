@@ -8,6 +8,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from config import logger, database
 from middleware.permissions import rights_required, check_edit_permission
 from utils.formatters import escape_md
+from text import *
 
 
 @rights_required(["root"])
@@ -16,29 +17,29 @@ async def new_user_command(message: types.Message):
     try:
         args = message.text.split(maxsplit=1)
         if len(args) < 2 or not args[1].strip():
-            await message.answer("❌ Укажите имя пользователя: `/newuser username`", parse_mode=None)
+            await message.answer(NEWUSER_MISSING_USERNAME, parse_mode=None)
             return
 
         new_username = args[1].strip().lstrip("@")
 
         if database.user_exists(new_username):
-            await message.answer(f"⚠️ Пользователь `{escape_md(new_username)}` уже существует.", parse_mode=None)
+            await message.answer(NEWUSER_ALREADY_EXISTS.format(target_username=escape_md(new_username)), parse_mode=None)
             return
 
         kb = InlineKeyboardBuilder()
         options = [
-            ("+1 день", 1),
-            ("+14 дней", 14),
-            ("+30 дней", 30),
-            ("+90 дней", 90),
-            ("Бессрочно", 0)
+            (ACCESS_OPTION_1_DAY, 1),
+            (ACCESS_OPTION_14_DAYS, 14),
+            (ACCESS_OPTION_30_DAYS, 30),
+            (ACCESS_OPTION_90_DAYS, 90),
+            (ACCESS_FOREVER, 0)
         ]
         for label, val in options:
             kb.button(text=label, callback_data=f"create_user:{new_username}:{val}")
         kb.adjust(3)
 
         await message.answer(
-            f"🆕 Создание пользователя `{escape_md(new_username)}`\nВыберите срок доступа:",
+            NEWUSER_CREATION_HEADER.format(username=escape_md(new_username)),
             parse_mode=None,
             reply_markup=kb.as_markup()
         )
@@ -47,7 +48,7 @@ async def new_user_command(message: types.Message):
 
     except Exception as e:
         logger.exception(f"Ошибка new_user_command: {e}")
-        await message.answer("❌ Ошибка при инициации создания пользователя.", parse_mode=None)
+        await message.answer(NEWUSER_INIT_ERROR, parse_mode=None)
 
 
 @rights_required(["root"])
@@ -56,7 +57,7 @@ async def create_user_callback(callback: types.CallbackQuery):
     try:
         parts = (callback.data or "").split(":")
         if len(parts) != 3:
-            return await callback.answer("Некорректные данные.", show_alert=True)
+            return await callback.answer(INCORRECT_DATA, show_alert=True)
 
         _, username, days = parts
         days = int(days)
@@ -92,7 +93,7 @@ async def create_user_callback(callback: types.CallbackQuery):
 
         # подтверждение
         confirm = await callback.message.answer(
-            f"✅ Пользователь `{escape_md(username)}` создан.\n🔑 Доступ до: `{escape_md(access_until)}`",
+            NEWUSER_CREATED.format(username=escape_md(username), access_until=escape_md(access_until)),
             parse_mode=None
         )
 
@@ -110,7 +111,7 @@ async def create_user_callback(callback: types.CallbackQuery):
 
     except Exception as e:
         logger.exception(f"Ошибка create_user_callback: {e}")
-        await callback.answer("❌ Ошибка при создании пользователя.", show_alert=True)
+        await callback.answer(NEWUSER_CREATION_ERROR, show_alert=True)
 
 
 async def _send_info_for_username(chat_id: int, requester_username: str, target_username: str):
@@ -119,43 +120,53 @@ async def _send_info_for_username(chat_id: int, requester_username: str, target_
     """
     # Проверки
     if not database.user_exists(target_username):
-        await _safe_send(chat_id, f"❌ Пользователь `{escape_md(target_username)}` не найден в базе.", parse_mode=None)
+        await _safe_send(chat_id, NOT_FOUND_IN_THE_DATABASE.format(target_username=escape_md(target_username)), parse_mode=None)
         return
 
     user_data = database.get_user(target_username)
     if not user_data:
-        await _safe_send(chat_id, f"❌ Не удалось получить данные для `{escape_md(target_username)}`.", parse_mode=None)
+        await _safe_send(chat_id, COULDNT_GET_THE_DATA_FOR.format(target_username=escape_md(target_username)), parse_mode=None)
         return
 
     is_self = (target_username == requester_username)
-    display_name = "себя" if is_self else f"`{escape_md(target_username)}`"
+    display_name = target_username
     rights = user_data.get("rights", "user")
     category = user_data.get("category", "—")
     drop_percent = user_data.get("percent", 0)
+    raw_access_until = user_data.get("access_until", "01.01.2000") or "01.01.2000"
+    access_until = NO_ACCESS if raw_access_until.strip() == "01.01.2000" else raw_access_until
+
+    # Заголовок
+    if is_self:
+        header = INFO_PARAMS_SELF
+    else:
+        header = INFO_PARAMS_OTHER.format(display_name=display_name)
 
     # Даты
     today = datetime.today().date()
     dates_count = int(user_data.get("dates", 0) or 0)
     end_date = today - timedelta(days=1)
     if dates_count > 0:
-        start_date = end_date - timedelta(days=dates_count - 1)
-        dates_text = f"{dates_count} дней (с {start_date.strftime('%d.%m.%Y')} по {end_date.strftime('%d.%m.%Y')})"
+        start_date = (end_date - timedelta(days=dates_count - 1)).strftime('%d.%m.%Y')
+        dates_text = DAYS_FROM.format(
+            dates_count=dates_count,
+            start_date=start_date,
+            end_date=end_date.strftime('%d.%m.%Y')
+        )
     else:
-        dates_text = "нет установленного периода"
+        dates_text = THERE_IS_NO_SET_PERIOD
 
-    raw_access_until = user_data.get('access_until', '01.01.2000') or '01.01.2000'
-    access_until = "нет доступа" if raw_access_until.strip() == "01.01.2000" else raw_access_until
+    rights_line = RIGHTS_LINE.format(rights=rights) if not (rights == "moder" and is_self) else ""
 
-    info_text = f"ℹ️ Информация о пользователе {display_name}:\n\n"
-    if not (rights == "moder" and is_self):
-        info_text += f"Права: `{escape_md(str(rights))}`\n"
-    info_text += (
-        f"Даты: {escape_md(dates_text)}\n"
-        f"Максимум дней оборота: `{escape_md(str(user_data.get('turnover_days_max', '—')))}`\n"
-        f"Минимальная выручка: `{escape_md(str(user_data.get('revenue_min', '—')))}`\n"
-        f"Категория: `{escape_md(str(category))}`\n"
-        f"Порог падения (%): `{escape_md(str(drop_percent))}`\n"
-        f"Доступ до: `{escape_md(access_until)}`"
+    info_text = USER_INFO.format(
+        header=header,
+        rights_line=rights_line,
+        dates_text=dates_text,
+        turnover_days_max=user_data.get("turnover_days_max", "—"),
+        revenue_min=user_data.get("revenue_min", "—"),
+        category=category,
+        drop_percent=drop_percent,
+        access_until=access_until
     )
 
     # Клавиатура (как в info_command) — показываем кнопки, если requester может редактировать
@@ -175,13 +186,13 @@ async def _send_info_for_username(chat_id: int, requester_username: str, target_
             edit_params = []
 
         labels = {
-            "rights": "🛠 Права",
-            "turnover_days_max": "📈 Оборот",
-            "revenue_min": "💰 Выручка",
-            "category": "🏷 Категория",
-            "dates": "📅 Даты",
-            "percent": "📉 Порог падения %",
-            "access_until": "🔑 Доступ"
+            "rights": RIGHTS,
+            "turnover_days_max": TURNOVER_DAYS_MAX,
+            "revenue_min": REVENUE_MIN,
+            "category": CATEGORY,
+            "dates": DATES,
+            "percent": PERCENT_TEXT,
+            "access_until": ACCESS_UNTIL
         }
 
         for param in edit_params:

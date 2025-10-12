@@ -1,6 +1,7 @@
 import inspect
 from aiogram import types
 from config import logger, database
+from text import *
 
 
 def rights_required(allowed_rights: list, self_only_rights: list = None):
@@ -25,7 +26,7 @@ def rights_required(allowed_rights: list, self_only_rights: list = None):
             user_data = database.get_user(username)
             if not user_data:
                 await message.answer(
-                    f"❌ У вас нет доступа. Пользователь `{username}` не найден в базе данных.",
+                    RIGHTS_USER_NOT_FOUND.format(username=username),
                     parse_mode=None
                 )
                 logger.warning(f"Пользователь {username} не найден в БД.")
@@ -35,7 +36,7 @@ def rights_required(allowed_rights: list, self_only_rights: list = None):
 
             # 🚫 Проверяем права
             if user_rights not in allowed_rights:
-                await message.answer("🚫 У вас нет доступа к этой команде.")
+                await message.answer(RIGHTS_NO_ACCESS_TO_COMMAND)
                 logger.warning(f"❌ {username} пытался вызвать команду без прав ({user_rights})")
                 return
 
@@ -57,7 +58,7 @@ def rights_required(allowed_rights: list, self_only_rights: list = None):
 
                 # Проверка: moder не может изменять чужие данные
                 if target_username and target_username != username:
-                    await message.answer("🚫 Вы можете изменять данные только для себя.")
+                    await message.answer(RIGHTS_SELF_ONLY_RESTRICTION)
                     logger.warning(f"❌ {username} пытался изменить чужие данные ({target_username})")
                     return
 

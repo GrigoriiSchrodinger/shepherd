@@ -7,6 +7,7 @@ from api.mpstats_api import MpstatsAPI
 from config import logger, database, MAX_TOTAL_PRODUCTS, DATE_FORMAT
 from feature.mpstats.reports_builder import ProductReportService
 from middleware.permissions import rights_required
+from text import *
 
 report_service = ProductReportService(database)
 
@@ -16,7 +17,7 @@ async def products_command(message: types.Message, bot: Bot) -> None:
     username = message.from_user.username or "unknown_user"
     logger.info(f"Команда /products от {username}")
 
-    processing_msg = await message.answer("⏳ Формируем отчёт...")
+    processing_msg = await message.answer(REPORT_GENERATION_IN_PROGRESS)
 
     user_data = database.get_user(username)
     if not user_data:
@@ -36,14 +37,14 @@ async def products_command(message: types.Message, bot: Bot) -> None:
     )
 
     if category_count > MAX_TOTAL_PRODUCTS:
-        await message.answer(f"Превышены лимиты, товаров в запросе - {category_count}.\nИзмени параметры запроса либо сузь категорию")
+        await message.answer(REPORT_LIMIT_EXCEEDED.format(category_count=category_count))
         await bot.delete_message(processing_msg.chat.id, processing_msg.message_id)
         return
 
     report_data = await report_service.generate_user_report(username)
 
     if not report_data:
-        await message.answer("❌ Не удалось сформировать отчёт")
+        await message.answer(REPORT_GENERATION_FAILED)
         await bot.delete_message(processing_msg.chat.id, processing_msg.message_id)
         return
 
