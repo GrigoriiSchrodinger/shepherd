@@ -202,7 +202,7 @@ async def edit_value_callback(callback: types.CallbackQuery):
 
             database.update_user_param(target_username, param, value)
             confirm = await callback.message.answer(
-                PARAMETER_FOR_UPDATED.format(param=escape_md(param), value=escape_md(str(value))),
+                f"Обновили параметр, отчет будет за послдение {value} дней",
                 parse_mode=None
             )
             await callback.answer()

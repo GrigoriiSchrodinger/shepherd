@@ -34,6 +34,25 @@ async def handle_text_edit(message: types.Message):
         parts = [p.strip() for p in value.split("/")]
         value = "/".join(parts)
 
+    if param == "turnover_days_max":
+        database.update_user_param(target_username, param, value)
+        await message.answer(f"Обновили параметр оборачиваемости до {value} дней")
+        return
+
+    if param == "revenue_min":
+        database.update_user_param(target_username, param, value)
+        await message.answer(f"Обновили минимальную выручку от {value} рублей")
+        return
+
+    if param == "percent":
+        database.update_user_param(target_username, param, value)
+        await message.answer(f"Обновили процент падение остатков до {value}%")
+        return
+
+    if param == "category":
+        database.update_user_param(target_username, param, value)
+        await message.answer(f"Обновили категорию - {value}")
+        return
     database.update_user_param(target_username, param, value)
     await message.answer(PARAMETER_FOR_UPDATED.format(param=param, value=value))
 
