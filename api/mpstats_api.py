@@ -1,19 +1,59 @@
 import aiohttp
 from dotenv import load_dotenv
-from config import logger, BASE_URL, MAX_PAGE_SIZE
-import os
+from config import logger, BASE_URL, MAX_PAGE_SIZE, MPSTATS_API_TOKEN
 
 load_dotenv()
-MPSTATS_API_TOKEN = os.getenv('MPSTATS_API_TOKEN')
 
 class MpstatsAPI:
-    def __init__(self, token: str, base_url: str = BASE_URL):
+    def __init__(self, token: str = MPSTATS_API_TOKEN, base_url: str = BASE_URL):
         self.token = token
         self.base_url = base_url
         self.headers = {
             "X-Mpstats-TOKEN": self.token,
             "Content-Type": "application/json"
         }
+
+    async def get_category_total(
+            self,
+            d1: str,
+            d2: str,
+            category_path: str,
+            revenue_min: int = None,
+            turnover_days_max: int = None
+    ) -> int:
+        """Возвращает total товаров в категории без пагинации, используя тот же payload, что и get_category_data."""
+
+        # Формируем filterModel
+        filter_model = {}
+        if revenue_min is not None:
+            filter_model["revenue"] = {"filterType": "number", "type": "greaterThan", "filter": revenue_min}
+        if turnover_days_max is not None:
+            filter_model["turnover_days"] = {"filterType": "number", "type": "lessThan", "filter": turnover_days_max}
+
+        payload = {
+            "startRow": 0,
+            "endRow": 1,
+            "filterModel": filter_model,
+            "sortModel": [{"colId": "revenue", "sort": "desc"}]
+        }
+
+        params = {"d1": d1, "d2": d2, "path": category_path}
+
+        async with aiohttp.ClientSession() as session:
+            try:
+                async with session.post(
+                        f"{self.base_url}/wb/get/category",
+                        headers=self.headers,
+                        params=params,
+                        json=payload
+                ) as response:
+                    response.raise_for_status()
+                    data = await response.json()
+                    total = data.get("total", 0)
+                    return int(total)
+            except Exception as e:
+                logger.error(f"Ошибка запроса mpstats.io: {e}")
+                return 0
 
     async def get_category_data(
         self,

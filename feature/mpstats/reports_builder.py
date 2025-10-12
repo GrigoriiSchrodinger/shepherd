@@ -1,8 +1,7 @@
 from datetime import datetime, timedelta
-from config import DATE_FORMAT
 from feature.mpstats.mpstats_reports import MpstatsExcelReport
 
-from config import logger
+from config import logger, DATE_FORMAT
 
 
 class ProductReportService:
