@@ -1,17 +1,13 @@
-version: '3.9'
-
 services:
   shepherd:
     build: .
     container_name: shepherd_app
-    volumes:
-      - .:/app
-    environment:
-      - ENV=production
     restart: unless-stopped
     deploy:
       resources:
         limits:
-          memory: 3.5g
+          cpus: '2.0'
+          memory: 6g
         reservations:
-          memory: 512m
+          cpus: '1.0'
+          memory: 2g
