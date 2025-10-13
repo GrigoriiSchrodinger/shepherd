@@ -9,3 +9,9 @@ services:
     environment:
       - ENV=production
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1.5g
+        reservations:
+          memory: 512m
