@@ -1,35 +1,43 @@
 from io import BytesIO
 import pandas as pd
 
-
 class ExcelBuilder:
-    """Утилита для построения Excel-файлов из DataFrame."""
-
+    """Утилита для построения Excel-файлов из DataFrame с минимальным потреблением памяти."""
     def __init__(self, sheet_name: str = "Отчёт"):
         self.sheet_name = sheet_name
 
     def build(self, df: pd.DataFrame, columns_config: dict) -> BytesIO:
         """
         Создаёт Excel-файл из DataFrame с заданной шириной колонок.
-        Работает с гиперссылками и форматами, возвращает BytesIO.
+        Поддерживает гиперссылки и форматирование, возвращает BytesIO.
         """
         output = BytesIO()
-        chunk_size = 10000  # запись чанками для экономии памяти
+        chunk_size = 5000
 
         with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-            # создаём пустой Excel с листом
-            df_head = df.head(0)  # заголовки без данных
-            df_head.to_excel(writer, index=False, sheet_name=self.sheet_name)
-            worksheet = writer.sheets[self.sheet_name]
+            workbook = writer.book
+            worksheet = workbook.add_worksheet(self.sheet_name)
+            writer.sheets[self.sheet_name] = worksheet
 
-            # задаём ширину колонок
-            for col, width in columns_config.items():
-                worksheet.set_column(f"{col}:{col}", width)
+            # Заголовки
+            for col_idx, col_name in enumerate(df.columns):
+                worksheet.write(0, col_idx, col_name)
+                col_letter = chr(65 + col_idx)
+                if col_letter in columns_config:
+                    worksheet.set_column(f"{col_letter}:{col_letter}", columns_config[col_letter])
 
-            # записываем данные чанками
+            # Запись данных чанками
+            row_offset = 1
             for start in range(0, len(df), chunk_size):
                 df_chunk = df.iloc[start:start+chunk_size]
-                df_chunk.to_excel(writer, index=False, header=False, startrow=start+1, sheet_name=self.sheet_name)
+                for i, (_, row) in enumerate(df_chunk.iterrows()):
+                    for j, col in enumerate(df.columns):
+                        value = row[col]
+                        if col in ("Ссылка WB", "MPStats") and isinstance(value, str) and value.startswith("http"):
+                            worksheet.write_url(row_offset + i, j, value, string=value)
+                        else:
+                            worksheet.write(row_offset + i, j, value)
+                row_offset += len(df_chunk)
 
         output.seek(0)
         return output
