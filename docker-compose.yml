@@ -5,9 +5,5 @@ services:
     restart: unless-stopped
     deploy:
       resources:
-        limits:
-          cpus: '2.0'
-          memory: 6g
-        reservations:
-          cpus: '1.0'
-          memory: 2g
+          limits:
+            memory: 4g
