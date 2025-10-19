@@ -13,6 +13,22 @@ class MpstatsAPI:
             "Content-Type": "application/json"
         }
 
+    async def get_categories(self) -> list:
+        """Получает список всех категорий Wildberries с MPStats."""
+        async with aiohttp.ClientSession() as session:
+            try:
+                async with session.get(
+                    f"{self.base_url}/wb/get/categories",
+                    headers=self.headers
+                ) as response:
+                    response.raise_for_status()
+                    data = await response.json()
+                    logger.info(f"Загружено {len(data)} категорий.")
+                    return data
+            except Exception as e:
+                logger.error(f"Ошибка при получении категорий mpstats.io: {e}")
+                return []
+
     async def get_category_total(
             self,
             d1: str,
@@ -22,8 +38,6 @@ class MpstatsAPI:
             turnover_days_max: int = None
     ) -> int:
         """Возвращает total товаров в категории без пагинации, используя тот же payload, что и get_category_data."""
-
-        # Формируем filterModel
         filter_model = {}
         if revenue_min is not None:
             filter_model["revenue"] = {"filterType": "number", "type": "greaterThan", "filter": revenue_min}
@@ -32,7 +46,7 @@ class MpstatsAPI:
 
         payload = {
             "startRow": 0,
-            "endRow": 1,
+            "endRow": 10,
             "filterModel": filter_model,
             "sortModel": [{"colId": "revenue", "sort": "desc"}]
         }
@@ -83,11 +97,7 @@ class MpstatsAPI:
                     "sortModel": [{"colId": "revenue", "sort": "desc"}]  # сортировка по выручке
                 }
 
-                params = {
-                    "d1": d1,
-                    "d2": d2,
-                    "path": category_path
-                }
+                params = {"d1": d1, "d2": d2, "path": category_path}
 
                 logger.info(f"Запрос категории: start={start}, end={start + MAX_PAGE_SIZE}")
 

@@ -6,6 +6,7 @@ from aiogram.filters import Command
 from api.mpstats_api import MpstatsAPI
 from config import logger, database, MAX_TOTAL_PRODUCTS, DATE_FORMAT
 from feature.mpstats.reports_builder import ProductReportService
+from feature.related_categories.category_searcher import CategorySearcher
 from middleware.permissions import rights_required
 from text import *
 
@@ -32,6 +33,10 @@ async def products_command(message: types.Message, bot: Bot) -> None:
     end_date = (now - timedelta(days=1)).strftime(DATE_FORMAT)
     start_date = (now - timedelta(days=days)).strftime(DATE_FORMAT)
 
+    searcher = CategorySearcher()
+    await searcher.load()
+
+    results = searcher.search(category)
     category_count = await MpstatsAPI().get_category_total(
         start_date, end_date, category, revenue_min, turnover_days_max
     )

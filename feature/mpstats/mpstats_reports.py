@@ -10,7 +10,6 @@ from api.mpstats_module import MpstatsData, Product
 from config import logger
 from feature.excel.excel import BaseExcelReport
 from feature.excel.excel_builder import ExcelBuilder
-from main import log_memory
 from utils.formatters import (
     format_currency,
     get_turnover_value,
@@ -37,12 +36,9 @@ class MpstatsExcelReport(BaseExcelReport):
         """Основной метод генерации отчёта."""
         try:
             self.validate_dates(start_date, end_date)
-            log_memory("Перед построением DataFrame и Excel")
             products, _ = await self._fetch_api_data(start_date, end_date, category, revenue_min, turnover_days_max)
-            log_memory("После построения DataFrame, перед ExcelWriter")
             df = self._prepare_dataframe(products, start_date, end_date, turnover_days_max, revenue_min, drop_threshold_percent)
             excel = self.excel.build(df, self._get_columns_config())
-            log_memory("После ExcelWriter")
             return excel
 
         except Exception as e:
